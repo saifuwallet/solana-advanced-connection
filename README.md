@@ -1,6 +1,6 @@
 # Solana Advanced Connection
 
-Light wrapper around `Connection` with fallback to other RPCs when something goes wrong, and balancing strategies
+Light wrapper around `Connection` with fallback to other RPCs when something goes wrong, load-balancing strategies and custom method routing.
 
 ## Install
 
@@ -45,6 +45,25 @@ const advCon = new AdvancedConnection([rpc1, rpc2], {strategy: "random"});
 advCon.getBalance(/* ... */);
 ```
 
+### Function routing (make certain functions always go to certain RPCs)
+
+Specify the `routes` key in config to override the routing for certain functions.
+The following example will route `getBalance` to the Serum RPC, but allows fallback to the strategy if it fails.
+
+Useful for when you want critical calls to always go to mainnet-beta for example.
+
+```typescript
+import AdvancedConnection from "solana-advanced-connection";
+
+const rpc1 = "https://api.mainnet-beta.solana.com";
+const rpc2 = "https://solana-api.projectserum.com";
+
+const advCon = new AdvancedConnection([rpc1, rpc2], {strategy: "random", routes: [
+    { allowFallback: true, method: "getBalance", endpoint: "https://solana-api.projectserum.com" }
+]});
+
+advCon.getBalance(/* ... */);
+```
 
 ## License
 

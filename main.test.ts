@@ -158,4 +158,71 @@ describe('solana-fallback-connection', () => {
       expect(await con.getBalance(Keypair.generate().publicKey)).eq(3);
     });
   });
+
+  describe('overrides', () => {
+    it('routes to correct connection', async function() {
+      class SomeConnection extends Connection {
+        get rpcEndpoint(): string {
+          return "fakecon";
+        }
+
+        async getSlot(commitment?: Commitment): Promise<number> {
+          return 555;
+        }
+      }
+
+      const con = new AdvancedConnection(["https://google.com/"]);
+      // @ts-ignore
+      con['connections'] = [getFake(3)];
+      // @ts-ignore
+      con['strategy'] = new Random(con['connections']);
+
+      const overrides = new Map();
+      overrides.set('getSlot', {allowFallback: false, connection: new SomeConnection("https://google.com")});
+
+      // @ts-ignore
+      con['overrides'] = overrides
+
+      // goes to normal con
+      expect(await con.getBalance(Keypair.generate().publicKey)).eq(3);
+
+      // should get routed to other con
+      expect(await con.getSlot('confirmed')).eq(555);
+    });
+
+    it('returns error when not allowed to fallback', async function() {
+      const con = new AdvancedConnection(["https://google.com/"]);
+      // @ts-ignore
+      con['connections'] = [getFake(3)];
+      // @ts-ignore
+      con['strategy'] = new Random(con['connections']);
+
+      const overrides = new Map();
+      overrides.set('getBalance', {allowFallback: false, connection: getErr()});
+
+      // @ts-ignore
+      con['overrides'] = overrides
+
+      // gets routed to errCon, does not allow to fallback
+      const r = con.getBalance(Keypair.generate().publicKey)
+      await expect(r).to.eventually.rejectedWith("can't do that, rpc is kill")
+    });
+
+    it('falls back to other strategy if allowed', async function() {
+      const con = new AdvancedConnection(["https://google.com/"]);
+      // @ts-ignore
+      con['connections'] = [getFake(3)];
+      // @ts-ignore
+      con['strategy'] = new Random(con['connections']);
+
+      const overrides = new Map();
+      overrides.set('getBalance', {allowFallback: true, connection: getErr()});
+
+      // @ts-ignore
+      con['overrides'] = overrides
+
+      // gets routed to errCon, then falls back to strategy
+      expect(await con.getBalance(Keypair.generate().publicKey)).eq(3);
+    });
+  });
 });

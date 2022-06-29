@@ -6,11 +6,13 @@ import {Random} from "./strategy/random";
 
 interface AdvancedConnectionConfig {
   strategy?: 'sequential' | 'round-robin' | 'random';
+  routes?: { allowFallback: boolean, method: string, endpoint: string }[];
 }
 
 class AdvancedConnection extends Connection {
   private readonly connections: Connection[]
   private readonly strategy: Strategy;
+  private readonly overrides: Map<string, { allowFallback: boolean, connection: Connection}>
 
   constructor(
     endpoints: string[],
@@ -35,6 +37,16 @@ class AdvancedConnection extends Connection {
         break;
     }
 
+    this.overrides = new Map();
+    advancedConfig?.routes?.forEach((route) => {
+      let foundConnection = this.connections.find((con) => con.rpcEndpoint === route.endpoint);
+      if (!foundConnection) {
+        foundConnection = new Connection(route.endpoint, commitmentOrConfig);
+      }
+
+      this.overrides.set(route.method, {allowFallback: route.allowFallback, connection: foundConnection});
+    });
+
     // keep reference to this
     const self = this;
 
@@ -53,7 +65,7 @@ class AdvancedConnection extends Connection {
           return await self.executeWithCallback((con) => {
             // @ts-ignore
             return con[property].apply(con, args);
-          });
+          }, property);
         }
 
         continue;
@@ -63,8 +75,28 @@ class AdvancedConnection extends Connection {
       // Do the same for non async functions
       // @ts-ignore
       this[property] = function (...args) {
-        self.strategy.start();
         let lastError;
+
+        // overrides come first, if set
+        if (self.overrides.has(property)) {
+          const override = self.overrides.get(property);
+          if (override) {
+            try {
+              // @ts-ignore
+              return override.connection[property].apply(override.connection, args);
+            } catch (e) {
+              lastError = e;
+            }
+
+            if (!override.allowFallback) {
+              if (lastError) {
+                throw lastError;
+              }
+            }
+          }
+        }
+
+        self.strategy.start();
         for (const conn of self.strategy.getConnection()) {
           try {
             // @ts-ignore
@@ -82,9 +114,27 @@ class AdvancedConnection extends Connection {
     }
   }
 
-  private executeWithCallback = async (callback: (connection: Connection) => Promise<any>) => {
+  private executeWithCallback = async (callback: (connection: Connection) => Promise<any>, property: string) => {
     // start with main connection, then iterate through all backups
     let lastError;
+    // overrides come first, if set
+    if (this.overrides.has(property)) {
+      const override = this.overrides.get(property);
+      if (override) {
+        try {
+          return await callback(override.connection);
+        } catch (e) {
+          lastError = e;
+        }
+
+        if (!override.allowFallback) {
+          if (lastError) {
+            throw lastError;
+          }
+        }
+      }
+    }
+
     this.strategy.start();
     for (const conn of this.strategy.getConnection()) {
       try {
