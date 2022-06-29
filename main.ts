@@ -1,17 +1,39 @@
 import {Commitment, Connection, ConnectionConfig} from '@solana/web3.js';
+import {Sequential} from "./strategy/sequential";
+import Strategy from "./strategy";
+import {RoundRobin} from "./strategy/roundrobin";
+import {Random} from "./strategy/random";
 
-class FallbackConnection extends Connection {
+interface AdvancedConnectionConfig {
+  strategy?: 'sequential' | 'round-robin' | 'random';
+}
+
+class AdvancedConnection extends Connection {
   private readonly connections: Connection[]
+  private readonly strategy: Strategy;
 
   constructor(
     endpoints: string[],
     commitmentOrConfig?: Commitment | ConnectionConfig,
+    advancedConfig?: AdvancedConnectionConfig,
   ) {
     // basically don't care about super
     super(endpoints[0] || "", commitmentOrConfig);
 
     // store connections
     this.connections = endpoints.map((url) => new Connection(url, commitmentOrConfig));
+
+    switch (advancedConfig?.strategy ?? 'sequential') {
+      case "round-robin":
+        this.strategy = new RoundRobin(this.connections);
+        break;
+      case "random":
+        this.strategy = new Random(this.connections);
+        break;
+      default:
+        this.strategy = new Sequential(this.connections);
+        break;
+    }
 
     // keep reference to this
     const self = this;
@@ -41,8 +63,9 @@ class FallbackConnection extends Connection {
       // Do the same for non async functions
       // @ts-ignore
       this[property] = function (...args) {
+        self.strategy.start();
         let lastError;
-        for (const conn of self.connections) {
+        for (const conn of self.strategy.getConnection()) {
           try {
             // @ts-ignore
             return conn[property].apply(conn, args);
@@ -62,7 +85,8 @@ class FallbackConnection extends Connection {
   private executeWithCallback = async (callback: (connection: Connection) => Promise<any>) => {
     // start with main connection, then iterate through all backups
     let lastError;
-    for (const conn of this.connections) {
+    this.strategy.start();
+    for (const conn of this.strategy.getConnection()) {
       try {
         return await callback(conn);
       } catch (e) {
@@ -75,4 +99,4 @@ class FallbackConnection extends Connection {
   };
 }
 
-export default FallbackConnection;
+export default AdvancedConnection;

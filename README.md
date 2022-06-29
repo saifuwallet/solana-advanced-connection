@@ -1,16 +1,16 @@
-# Solana Connection with Fallback
+# Solana Advanced Connection
 
-Light wrapper around `Connection` with fallback to other RPCs when something goes wrong.
+Light wrapper around `Connection` with fallback to other RPCs when something goes wrong, and balancing strategies
 
 ## Install
 
 ```bash
-yarn add solana-fallback-connection
+yarn add solana-advanced-connection
 ```
 
 or
-```
-npm install solana-fallback-connection
+```bash
+npm install solana-advanced-connection
 ```
 
 ## Usage
@@ -18,14 +18,33 @@ npm install solana-fallback-connection
 Interface is identical to `Connection` except constructor
 
 ```typescript
-import FallbackConnection from "solana-fallback-connection";
+import AdvancedConnectiotn from "solana-advanced-connection";
 
 const rpc1 = "https://api.mainnet-beta.solana.com";
 const rpc2 = "https://solana-api.projectserum.com";
 
-const fallbackConnection = new FallbackConnection([rpc1, rpc2]);
-fallbackConnection.getBalance(/* ... */);
+const advCon = new AdvancedConnectiotn([rpc1, rpc2]);
+advCon.getBalance(/* ... */);
 ```
+
+### Balancing strategies
+
+Comes with 3 strategies for your choosing:
+
+- `sequential`: try each RPC in sequence for each call, will always start from first, then second, etc. (**default**)
+- `round-robin`: round robin over all RPCs, across calls
+- `random`: randomly pick RPCs
+
+```typescript
+import AdvancedConnection from "solana-advanced-connection";
+
+const rpc1 = "https://api.mainnet-beta.solana.com";
+const rpc2 = "https://solana-api.projectserum.com";
+
+const advCon = new AdvancedConnection([rpc1, rpc2], {strategy: "random"});
+advCon.getBalance(/* ... */);
+```
+
 
 ## License
 

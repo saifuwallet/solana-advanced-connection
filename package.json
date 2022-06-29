@@ -1,15 +1,15 @@
 {
-  "name": "solana-fallback-connection",
+  "name": "solana-advanced-connection",
   "description": "Solana Connection with fallback to other RPCs",
   "author": "David Mohl <git@d.sh>",
   "version": "1.0.1",
   "main": "lib/main.cjs.js",
   "module": "lib/main.esm.js",
   "types": "lib/main.d.ts",
-  "repository": "git@github.com:saifuwallet/solana-fallback-connection.git",
+  "repository": "git@github.com:saifuwallet/solana-advanced-connection.git",
   "license": "MIT",
   "dependencies": {
-    "@solana/web3.js": "^1.41.0"
+    "@solana/web3.js": "^1.44.3"
   },
   "scripts": {
     "test": "ts-mocha main.test.ts",
